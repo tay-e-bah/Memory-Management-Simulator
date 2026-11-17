@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Page Replacement Algorithm Visualization</title>
+<style>
+:root{--bg:#f1f4fa;--card:#fff;--tx:#1b2433;--mut:#5b6678;--bd:#d3d9e6;--pri:#2563eb;--ok:#1e9e4a;--bad:#d93636;--vic:#c9820a;--cell:#e6ebf5;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1117;--card:#151b23;--tx:#e6edf3;--mut:#8b96a5;--bd:#2b3340;--ok:#238636;--bad:#da3633;--vic:#b7791f;--cell:#0b0f14}}
+:root[data-theme="dark"]{--bg:#0d1117;--card:#151b23;--tx:#e6edf3;--mut:#8b96a5;--bd:#2b3340;--ok:#238636;--bad:#da3633;--vic:#b7791f;--cell:#0b0f14}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1000px;margin:auto}
+h1{text-align:center;color:var(--pri);font-size:1.7rem;margin:.2em 0 .7em}
+h2{color:var(--pri);font-size:1.1rem;text-align:center;margin:.8em 0 .5em}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:center}
+label{display:flex;flex-direction:column;font-size:.8rem;color:var(--mut);font-weight:600;gap:4px}
+input,select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:7px 9px;font:inherit}
+#fr{width:80px}#rs{width:min(340px,80vw)}
+button{background:var(--pri);color:#fff;border:0;border-radius:6px;padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+button.sec{background:var(--cell);color:var(--tx);border:1px solid var(--bd)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--pri);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0}
+#msg{color:var(--bad);text-align:center;min-height:1.3em}
+.legend{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;font-size:.85rem}
+.sw{display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:5px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 8px}
+.scroll{overflow-x:auto;padding-bottom:6px}
+.seq{display:flex;gap:4px;justify-content:flex-start;width:max-content;margin:auto}
+.seq span{min-width:30px;height:30px;display:grid;place-items:center;background:var(--cell);border-radius:4px;font-weight:700}
+.seq .cur{background:var(--pri);color:#fff}
+table.g{border-collapse:separate;border-spacing:3px;margin:auto}
+table.g td{min-width:30px;height:30px;text-align:center;background:var(--cell);border-radius:4px;font-weight:700;padding:0}
+td.ok{background:var(--ok)!important;color:#fff}
+td.bad{background:var(--bad)!important;color:#fff}
+td.vic{background:var(--vic)!important;color:#fff}
+td small{font-size:.6rem;opacity:.85;margin-left:1px}
+.stats{margin-top:12px;border-left:4px solid var(--pri);background:var(--cell);border-radius:6px;padding:10px 14px}
+.m{color:var(--mut);text-align:center}
+table.t{border-collapse:collapse;width:100%}
+.t th,.t td{border-bottom:1px solid var(--bd);padding:6px 8px;text-align:left}
+.fsr{display:grid;grid-template-columns:84px 1fr;gap:6px;margin:8px 0}
+.bar{display:inline-block;height:12px;border-radius:3px;vertical-align:middle;min-width:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Page Replacement Algorithm Visualization</h1>
+
+<div class="card controls">
+  <label>Algorithm
+    <select id="al"><option>FIFO</option><option>LRU</option><option>Optimal</option><option>Clock</option></select></label>
+  <label>Number of frames (1–10)<input id="fr" type="number" min="1" max="10" value="3"></label>
+  <label>Reference string (spaces, commas or digits like 70120)<input id="rs"></label>
+  <button id="st">Start Visualization</button>
+  <button id="rst" class="sec">Reset</button>
+  <button id="rnd" class="sec">Random String</button>
+  <button id="ld" class="sec">Load File</button>
+  <button id="th" class="sec">Light/Dark</button>
+  <input id="file" type="file" accept=".txt" hidden>
+</div>
+<div id="msg" role="alert"></div>
+
+<div class="row">
+  <button id="pv" class="sec">Previous Step</button>
+  <button id="nx">Next Step</button>
+  <button id="ap">Auto Play</button>
+  <button id="all" class="sec">Show All</button>
+</div>
+
+<div class="card legend">
+  <span><i class="sw" style="background:var(--bad)"></i>Page fault (empty frame)</span>
+  <span><i class="sw" style="background:var(--ok)"></i>Hit (accessed)</span>
+  <span><i class="sw" style="background:var(--vic)"></i>Fault, victim replaced</span>
+</div>
+
+<div class="tabs">
+  <button data-t="t1">Visualization</button>
+  <button data-t="t2" class="sec">Compare</button>
+  <button data-t="t3" class="sec">Belady’s Anomaly</button>
+  <button data-t="t4" class="sec">Working Set</button>
+  <button data-t="t5" class="sec">Algorithm Info</button>
+</div>
+
+<section id="t1" class="card">
+  <h2>Page Reference Sequence</h2>
+  <div class="scroll"><div class="seq" id="seq"></div></div>
+  <h2>Memory Frames</h2>
+  <div class="scroll" id="gs"><div id="grid"></div></div>
+  <p class="m" id="note"></p>
+  <div class="stats" id="stats"></div>
+</section>
+
+<section id="t2" class="card" hidden>
+  <h2>All algorithms on the same string</h2>
+  <div id="cmp"></div>
+  <h2>Page faults for 1 to 8 frames</h2>
+  <div id="fs"></div>
+</section>
+
+<section id="t3" class="card" hidden>
+  <h2>With FIFO, more frames can cause more faults</h2>
+  <div class="row"><button id="b1">Classic string</button><button id="b2" class="sec">My current string</button></div>
+  <div id="bel"></div>
+</section>
+
+<section id="t4" class="card" hidden>
+  <h2>Distinct pages in the last K references</h2>
+  <div class="row"><label>Window size K (1–20)<input id="k" type="number" min="1" max="20" value="3"></label></div>
+  <div class="scroll" id="wst"></div>
+</section>
+
+<section id="t5" class="card" hidden>
+  <p><b>FIFO</b> replaces the page that has been in memory the longest.</p>
+  <p><b>LRU</b> replaces the page that has not been used for the longest time.</p>
+  <p><b>Optimal</b> replaces the page that will not be used for the longest time in the future. It needs to know the future, so it is only a benchmark.</p>
+  <p><b>Clock (Second Chance)</b> works like FIFO, but a page whose reference bit is 1 gets a second chance: the bit is cleared and the hand moves on. The small number in each cell is its reference bit.</p>
+</section>
+</div>
+
+<script>
+const $=id=>document.getElementById(id),A=["FIFO","LRU","Optimal","Clock"],CLASSIC=[1,2,3,4,1,2,5,1,2,3,4,5];
+let S=null,cur=0,timer=null;
+
+// ---------- Engine: runs one algorithm and records every step ----------
+function sim(name,refs,n){
+  const fr=Array(n).fill(-1),bit=Array(n).fill(0),last=Array(n).fill(0),steps=[];
+  let ptr=0,hand=0,hits=0;
+  refs.forEach((p,i)=>{
+    let idx=fr.indexOf(p),rep=-1;
+    const hit=idx>=0;
+    if(hit){hits++;last[idx]=i;bit[idx]=1;}
+    else{
+      if(name==="Clock"){
+        while(fr[hand]!==-1&&bit[hand]){bit[hand]=0;hand=(hand+1)%n;}
+        idx=hand;hand=(hand+1)%n;
+      }else{
+        idx=fr.indexOf(-1);
+        if(idx<0){
+          if(name==="FIFO")idx=ptr;
+          else if(name==="LRU")idx=last.indexOf(Math.min(...last));
+          else{ // Optimal: the page used farthest in the future
+            let far=-1;
+            for(let f=0;f<n;f++){
+              let nx=refs.indexOf(fr[f],i+1);
+              if(nx<0)nx=Infinity;
+              if(nx>far){far=nx;idx=f;}
+            }
+          }
+        }
+        if(name==="FIFO")ptr=(ptr+1)%n;
+      }
+      rep=fr[idx];fr[idx]=p;last[idx]=i;bit[idx]=1;
+    }
+    steps.push({p,fr:[...fr],bit:[...bit],hit,idx,rep});
+  });
+  return{steps,hits,faults:refs.length-hits};
+}
+
+function parse(t){
+  t=t.trim();
+  const a=/^\d{3,}$/.test(t)?t.split("").map(Number):t.split(/[\s,]+/).filter(Boolean).map(x=>/^\d{1,2}$/.test(x)?+x:NaN);
+  return a.length&&a.every(x=>x===x)?a:null;
+}
+const pct=(x,t)=>(100*x/t).toFixed(2)+"%";
+function msg(t){$("msg").textContent=t;}
+
+// ---------- Controls ----------
+function start(){
+  stop();
+  const n=+$("fr").value,refs=parse($("rs").value);
+  if(!Number.isInteger(n)||n<1||n>10)return msg("Frames must be a whole number from 1 to 10.");
+  if(!refs)return msg("Enter page numbers (0–99) separated by spaces or commas, or digits like 70120.");
+  msg("");
+  S={algo:$("al").value,n,refs,r:sim($("al").value,refs,n)};
+  cur=0;draw();extras();
+}
+function stop(){clearInterval(timer);timer=null;$("ap").textContent="Auto Play";}
+function go(c){if(!S)return;cur=Math.max(0,Math.min(S.refs.length,c));draw();}
+function auto(){
+  if(timer)return stop();
+  if(!S)return;
+  if(cur>=S.refs.length)cur=0;
+  $("ap").textContent="Pause";
+  timer=setInterval(()=>{if(cur>=S.refs.length)return stop();cur++;draw();},700);
+}
+
+// ---------- Drawing the step-by-step view ----------
+function draw(){
+  const{refs,n,r}=S,st=r.steps;
+  $("seq").innerHTML=refs.map((p,i)=>`<span class="${i===cur-1?"cur":""}">${p}</span>`).join("");
+  if(cur===0)$("grid").innerHTML='<p class="m">Press Next Step, Auto Play or Show All.</p>';
+  else{
+    let h='<table class="g">';
+    for(let f=0;f<n;f++){
+      h+="<tr>";
+      for(let i=0;i<cur;i++){
+        const s=st[i],v=s.fr[f];let c="",t="";
+        if(f===s.idx){c=s.hit?"ok":s.rep>=0?"vic":"bad";if(!s.hit&&s.rep>=0)t="replaced page "+s.rep;}
+        h+=`<td class="${c}" title="${t}">${v<0?"":v+(S.algo==="Clock"?`<small>${s.bit[f]}</small>`:"")}</td>`;
+      }
+      h+="</tr>";
+    }
+    h+="<tr>"+st.slice(0,cur).map(s=>`<td style="background:none;color:var(--${s.hit?"ok":"bad"})">${s.hit?"H":"F"}</td>`).join("")+"</tr></table>";
+    $("grid").innerHTML=h;
+  }
+  $("gs").scrollLeft=1e6;
+  let note="";
+  if(cur){const s=st[cur-1];
+    note=`Step ${cur}: page ${s.p} `+(s.hit?"is already in memory. Hit.":s.rep>=0?`is not in memory. Fault: page ${s.rep} was replaced.`:"is not in memory. Fault: loaded into an empty frame.");}
+  $("note").textContent=note;
+  const f=st.slice(0,cur).filter(s=>!s.hit).length,h2=cur-f,p=x=>cur?pct(x,cur):"0.00%";
+  $("stats").innerHTML=`<b>Algorithm:</b> ${S.algo} &nbsp; <b>Current step:</b> ${cur} of ${refs.length}<br><b>Page faults:</b> ${f} (${p(f)}) &nbsp; <b>Page hits:</b> ${h2} (${p(h2)})`;
+}
+
+// ---------- Compare, frame-size chart, Belady, working set ----------
+function extras(){
+  const{refs,n}=S,R=A.map(a=>({a,...sim(a,refs,n)})),best=Math.min(...R.map(x=>x.faults));
+  $("cmp").innerHTML='<table class="t"><tr><th>Algorithm<th>Faults<th>Hits<th>Hit ratio<th>Fault ratio</tr>'+
+    R.map(x=>`<tr><td>${x.a}<td>${x.faults}<td>${x.hits}<td>${pct(x.hits,refs.length)}<td>${pct(x.faults,refs.length)}</tr>`).join("")+
+    `</table><p>Fewest faults: <b>${R.filter(x=>x.faults===best).map(x=>x.a).join(", ")}</b> (${best}) with ${n} frames. Optimal is the theoretical best.</p>`;
+  const rows=[],col=["var(--pri)","var(--ok)","var(--vic)"],nm=["FIFO","LRU","Optimal"];let mx=1;
+  for(let k=1;k<=8;k++){const f=nm.map(a=>sim(a,refs,k).faults);mx=Math.max(mx,...f);rows.push(f);}
+  $("fs").innerHTML=nm.map((a,j)=>`<span style="margin-right:14px"><i class="sw" style="background:${col[j]}"></i>${a}</span>`).join("")+
+    rows.map((f,i)=>`<div class="fsr"><b>${i+1} frame${i?"s":""}</b><div>`+f.map((v,j)=>`<div><span class="bar" style="width:${v/mx*85}%;background:${col[j]}"></span> ${v}</div>`).join("")+"</div></div>").join("");
+  ws();
+}
+function belady(refs){
+  const g=(a,k)=>sim(a,refs,k).faults,f3=g("FIFO",3),f4=g("FIFO",4),l3=g("LRU",3),l4=g("LRU",4);
+  $("bel").innerHTML=`<p>Reference string: <b>${refs.join(" ")}</b></p><table class="t"><tr><th>Algorithm<th>3 frames<th>4 frames</tr><tr><td>FIFO<td>${f3}<td>${f4}</tr><tr><td>LRU<td>${l3}<td>${l4}</tr></table><p>`+
+    (f4>f3?`Belady’s Anomaly occurred: FIFO had more faults with 4 frames (${f4}) than with 3 (${f3}).`:"No anomaly for FIFO with this string.")+
+    (l4<=l3?" LRU did not get worse with more frames.":"")+"</p>";
+}
+function ws(){
+  if(!S)return;
+  const k=Math.max(1,Math.min(20,+$("k").value||3));
+  $("wst").innerHTML='<table class="t"><tr><th>Time<th>Page<th>Working set<th>Size</tr>'+S.refs.map((p,i)=>{
+    const w=[...new Set(S.refs.slice(Math.max(0,i-k+1),i+1))].sort((a,b)=>a-b);
+    return `<tr><td>${i+1}<td>${p}<td>{ ${w.join(" ")} }<td>${w.length}</tr>`;}).join("")+"</table>";
+}
+
+// ---------- Random string with locality of reference ----------
+function rnd(){
+  const r=()=>Math.floor(Math.random()*10),L=[r(),r(),r()],o=[];
+  for(let i=0;i<20;i++){
+    let p;
+    if(Math.random()<.8)p=L[Math.floor(Math.random()*3)];   // stay inside the locality
+    else{p=r();L[Math.floor(Math.random()*3)]=p;}             // move to a new locality
+    o.push(p);
+  }
+  $("rs").value=o.join(" ");start();
+}
+
+// ---------- Wiring ----------
+$("st").onclick=start;$("al").onchange=start;$("fr").onchange=start;
+$("rs").onkeydown=e=>{if(e.key==="Enter")start();};
+$("rst").onclick=()=>{$("al").value="FIFO";$("fr").value=3;$("rs").value="7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1";start();};
+$("rnd").onclick=rnd;
+$("ld").onclick=()=>$("file").click();
+$("file").onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{$("rs").value=String(r.result).trim().replace(/\s+/g," ");start();};
+  r.readAsText(f);e.target.value="";
+};
+$("pv").onclick=()=>{stop();go(cur-1);};
+$("nx").onclick=()=>{stop();go(cur+1);};
+$("all").onclick=()=>{stop();if(S)go(S.refs.length);};
+$("ap").onclick=auto;
+$("k").oninput=ws;
+$("b1").onclick=()=>belady(CLASSIC);
+$("b2").onclick=()=>{if(S)belady(S.refs);};
+$("th").onclick=()=>{
+  const d=document.documentElement,dark=d.dataset.theme?d.dataset.theme==="dark":matchMedia("(prefers-color-scheme:dark)").matches;
+  d.dataset.theme=dark?"light":"dark";
+};
+const tabs=document.querySelectorAll(".tabs button");
+tabs.forEach(b=>b.onclick=()=>{
+  tabs.forEach(x=>x.className="sec");b.className="";
+  document.querySelectorAll("section").forEach(s=>s.hidden=s.id!==b.dataset.t);
+});
+
+// ---------- Start-up ----------
+$("rs").value="7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1";
+belady(CLASSIC);start();go(S.refs.length);
+</script>
+</body>
+</html>
